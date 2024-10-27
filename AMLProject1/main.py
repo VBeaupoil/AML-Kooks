@@ -20,13 +20,13 @@ print(X_train.shape, X_test.shape, y_train.shape)
 
 
 
-# Impute missing values with mean of each collumn
+# Impute missing values with median of each collumn
 X_m = np.nanmedian(X_train, axis=0, keepdims=True)
 X_train = np.where(np.isnan(X_train), X_m, X_train)
 X_test = np.where(np.isnan(X_test), X_m, X_test)
 
 
-#remove outliers
+#remove outliers with IQR (interquartile range) method
 Q1 = np.percentile(X_train, 20, axis=0)
 Q3 = np.percentile(X_train, 80, axis=0)
 IQR = Q3 - Q1
@@ -58,7 +58,7 @@ correlation_matrix = data.corr()
 correlation_with_target = correlation_matrix['target'].drop('target')  # Drop target itself
 
 # Set a threshold for feature selection
-correlation_threshold = 0.04  # Example threshold; adjust as needed
+correlation_threshold = 0.1  # threshold; adjust as needed
 
 # Select features with correlation above the threshold
 selected_features = correlation_with_target[abs(correlation_with_target) > correlation_threshold].index
@@ -75,15 +75,16 @@ X_test = selection.transform(X_test)
 
 print(X_train.shape, X_test.shape, y_train.shape)
 
-X_og, y_og = X_train, y_train
 
-# Split data into training and validation (80-20)
+
+# Split data into training and validation
+
+X_og, y_og = X_train, y_train # maintain copy of full dataset before splitting
 X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=0)
 
 
-# train Linear Regression model
+# train Regression model
 regressor = RandomForestRegressor(random_state=0)
-#regressor = GaussianProcessRegressor(alpha=1, kernel=RBF(), random_state=0)
 regressor.fit(X_train, y_train)
 y_train_pred = regressor.predict(X_train)
 y_val_pred = regressor.predict(X_val)
@@ -96,6 +97,7 @@ print("train score: ", train_score)
 print("val score: ", val_score)
 
 
+#retrain model on whole data since we dont need the validation score anymore
 regressor = RandomForestRegressor()
 regressor.fit(X_og, y_og)
 # Use model on test data to create output
