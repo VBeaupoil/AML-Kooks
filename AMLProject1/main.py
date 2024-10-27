@@ -1,15 +1,10 @@
 import numpy as np
 import pandas as pd
 from sklearn.feature_selection import SelectKBest, mutual_info_regression
-from sklearn.gaussian_process.kernels import RBF, Matern
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
-from scipy.stats import chi2
-from numpy.linalg import inv
+
 
 # import data, leave out header
 X_train_df = pd.read_csv('./data/X_train.csv', skiprows=1, header=None)
@@ -22,6 +17,7 @@ X_train = X_train_df.values[:, 1:]
 X_test = X_test_df.values[:, 1:]
 y_train = y_train_df.values[:, 1]
 print(X_train.shape, X_test.shape, y_train.shape)
+
 
 
 # Impute missing values with mean of each collumn
@@ -62,7 +58,7 @@ correlation_matrix = data.corr()
 correlation_with_target = correlation_matrix['target'].drop('target')  # Drop target itself
 
 # Set a threshold for feature selection
-correlation_threshold = 0.03  # Example threshold; adjust as needed
+correlation_threshold = 0.04  # Example threshold; adjust as needed
 
 # Select features with correlation above the threshold
 selected_features = correlation_with_target[abs(correlation_with_target) > correlation_threshold].index
@@ -72,7 +68,7 @@ print(X_train.shape, X_test.shape, y_train.shape)
 
 
 # select top k features with highest mutual information
-k = 300
+k = 150
 selection = SelectKBest(mutual_info_regression, k=k).fit(X_train, y_train)
 X_train = selection.transform(X_train)
 X_test = selection.transform(X_test)
@@ -87,6 +83,7 @@ X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.
 
 # train Linear Regression model
 regressor = RandomForestRegressor(random_state=0)
+#regressor = GaussianProcessRegressor(alpha=1, kernel=RBF(), random_state=0)
 regressor.fit(X_train, y_train)
 y_train_pred = regressor.predict(X_train)
 y_val_pred = regressor.predict(X_val)
@@ -99,8 +96,8 @@ print("train score: ", train_score)
 print("val score: ", val_score)
 
 
-#regressor = RandomForestRegressor()
-#regressor.fit(X_og, y_og)
+regressor = RandomForestRegressor()
+regressor.fit(X_og, y_og)
 # Use model on test data to create output
 y_test_pred = regressor.predict(X_test)
 table = pd.DataFrame({'id': np.arange(0, y_test_pred.shape[0]), 'y': y_test_pred.flatten()})
