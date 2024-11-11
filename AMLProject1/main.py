@@ -2,12 +2,13 @@ import numpy as np
 import pandas as pd
 from sklearn.feature_selection import SelectKBest, mutual_info_regression
 from sklearn.gaussian_process.kernels import RBF, DotProduct, ExpSineSquared, RationalQuadratic, WhiteKernel, Matern
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import StandardScaler
 from sklearn.gaussian_process import GaussianProcessRegressor
-
+from sklearn.ensemble import StackingRegressor, RandomForestRegressor, IsolationForest
 
 # import data, leave out header
 X_train_df = pd.read_csv('./data/X_train.csv', skiprows=1, header=None)
@@ -25,7 +26,6 @@ scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
-
 # Impute missing values with median of each collumn
 X_m = np.nanmedian(X_train, axis=0, keepdims=True)
 X_train = np.where(np.isnan(X_train), X_m, X_train)
@@ -34,11 +34,13 @@ X_test = np.where(np.isnan(X_test), X_m, X_test)
 
 #remove outliers using Local Outlier Factor
 #results: train score 0.939, val score 0.658
-lof = LocalOutlierFactor(n_neighbors=50, contamination=0.2, metric='minkowski', p=1.5 )
+lof = LocalOutlierFactor(n_neighbors=50, contamination=0.1, metric='minkowski', p=1.5 )
 outlier_labels = lof.fit_predict(X_train)
 
+
+
 #remove outliers with isolation forest
-#iso_forest = IsolationForest(contamination=0.1, n_estimators=100, max_features=0.7, random_state=10)
+#iso_forest = IsolationForest(contamination=0.1, random_state=10)
 #outlier_labels = iso_forest.fit_predict(X_train)
 
 X_train = X_train[outlier_labels == 1]
@@ -81,14 +83,27 @@ print(X_train.shape, X_test.shape, y_train.shape)
 # Split data into training and validation
 
 X_og, y_og = X_train, y_train # maintain copy of full dataset before splitting
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=0)
+X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.1, random_state=4)
 
 print(X_train[0,:20])
 
 # train Regression model
 
-#regressor = GaussianProcessRegressor(kernel=RationalQuadratic(length_scale=0.5, alpha=0.0001), alpha = 0.3, random_state=0)
-regressor = GaussianProcessRegressor(kernel=RationalQuadratic(length_scale=1, alpha=0.001)+Matern(length_scale=1), alpha=0.01, random_state=0)
+
+estimators = [
+    ('rfr', RandomForestRegressor(random_state=0)),
+    ('svr', GaussianProcessRegressor(kernel=RationalQuadratic(length_scale=1, alpha=0.01)+Matern(length_scale=1), alpha=0.1, random_state=10)),
+    ('svr2', GaussianProcessRegressor(kernel=RBF(length_scale=1)+Matern(), alpha=0.1, random_state=14)),
+    ('svr3', GaussianProcessRegressor(kernel=RBF(length_scale=1)+Matern(), alpha=0.1, random_state=10))
+
+]
+
+regressor = StackingRegressor(
+    estimators=estimators,
+    final_estimator=LinearRegression()
+)
+#regressor = GaussianProcessRegressor(kernel=RationalQuadratic(length_scale=1, alpha=0.001)+Matern(length_scale=1), alpha=0.1, random_state=10)
+#regressor = GaussianProcessRegressor(kernel=RationalQuadratic(length_scale=10, alpha=0.001), alpha=0.1)
 regressor.fit(X_train, y_train)
 y_train_pred = regressor.predict(X_train)
 y_val_pred = regressor.predict(X_val)
@@ -103,7 +118,7 @@ print("val score: ", val_score)
 
 #retrain model on whole data since we dont need the validation score anymore
 #regressor = GaussianProcessRegressor()
-#regressor.fit(X_og, y_og)
+regressor.fit(X_og, y_og)
 # Use model on test data to create output
 y_test_pred = regressor.predict(X_test)
 table = pd.DataFrame({'id': np.arange(0, y_test_pred.shape[0]), 'y': y_test_pred.flatten()})
